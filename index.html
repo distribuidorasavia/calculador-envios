@@ -54,7 +54,7 @@
             border: 1px solid #ddd;
             border-top: none;
             border-radius: 0 0 8px 8px;
-            max-height: 200px;
+            max-height: 220px;
             overflow-y: auto;
             z-index: 1000;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -62,10 +62,11 @@
             display: none;
         }
         .suggestions div {
-            padding: 10px;
+            padding: 12px;
             cursor: pointer;
             font-size: 14px;
             border-bottom: 1px solid #eee;
+            line-height: 1.4;
         }
         .suggestions div:hover {
             background-color: #f5f5f5;
@@ -116,7 +117,7 @@
     <p class="subtitle">Ingresá tu dirección para calcular el envío</p>
     
     <div class="search-container">
-        <input type="text" id="direccion" placeholder="Ej: Av. Calchaquí 1500, Florencio Varela" autocomplete="off" oninput="buscarDireccionDebounce()">
+        <input type="text" id="direccion" placeholder="Ej: Av. Mitre 1200, Quilmes" autocomplete="off" oninput="buscarDireccionDebounce()">
         <div id="suggestions" class="suggestions"></div>
     </div>
     
@@ -132,8 +133,13 @@
 </div>
 
 <script>
+    // Punto Fijo: Cruce Varela
     const DEPOSITO_LAT = -34.7963;
     const DEPOSITO_LON = -58.2770;
+
+    // Caja de búsqueda para encerrar los resultados prioritarios en GBA Sur
+    // [Lat Min, Lon Min, Lat Max, Lon Max] -> Abarca Quilmes, Varela, Berazategui, Avellaneda, Lanus, etc.
+    const VIEWBOX = "-58.45,-34.95,-58.10,-34.65"; 
 
     let coordenadaSeleccionada = null;
     let debounceTimer;
@@ -149,7 +155,8 @@
         }
 
         debounceTimer = setTimeout(() => {
-            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&countrycodes=ar&limit=5`;
+            // viewbox y bounded=1 fuerzan a Nominatim a buscar prioritariamente dentro de nuestro cuadrante de GBA Sur
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&countrycodes=ar&viewbox=${VIEWBOX}&bounded=1&limit=5&addressdetails=1`;
             
             fetch(url)
                 .then(response => response.json())
@@ -159,9 +166,22 @@
                     
                     if (data.length > 0) {
                         data.forEach(item => {
+                            // Armamos un formato de nombre más limpio y legible para el usuario de Buenos Aires
+                            const road = item.address.road || '';
+                            const houseNumber = item.address.house_number || '';
+                            const suburb = item.address.suburb || item.address.city_district || '';
+                            const city = item.address.city || item.address.town || item.address.state || '';
+                            
+                            let nombreLimpio = item.display_name;
+                            if (road) {
+                                nombreLimpio = `${road} ${houseNumber}`.trim();
+                                if (suburb) nombreLimpio += `, ${suburb}`;
+                                if (city && city !== suburb) nombreLimpio += `, ${city}`;
+                            }
+
                             const div = document.createElement('div');
-                            div.innerText = item.display_name;
-                            div.onclick = () => seleccionarDireccion(item.display_name, item.lat, item.lon);
+                            div.innerText = nombreLimpio;
+                            div.onclick = () => seleccionarDireccion(nombreLimpio, item.lat, item.lon);
                             sugerenciasDiv.appendChild(div);
                         });
                         sugerenciasDiv.style.display = 'block';
