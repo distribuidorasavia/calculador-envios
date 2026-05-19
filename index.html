@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculador de Envíos - Distribuidora Savia</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f6f0;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+            box-sizing: border-box;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            position: relative;
+        }
+        h2 { color: #5c3d2e; margin-bottom: 5px; }
+        p.subtitle { color: #8c7853; margin-top: 0; font-size: 14px; margin-bottom: 25px; }
+        
+        .search-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: left;
+            display: none;
+        }
+        .suggestions div {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+        }
+        .suggestions div:hover {
+            background-color: #f5f5f5;
+        }
+
+        button {
+            background-color: #5c3d2e;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.3s;
+            font-weight: bold;
+        }
+        button:hover { background-color: #4a3124; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        .resultados {
+            margin-top: 25px;
+            border-top: 2px dashed #eee;
+            padding-top: 15px;
+            display: none;
+        }
+        .dato {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        .destacado {
+            font-weight: bold;
+            color: #27ae60;
+            font-size: 24px;
+            margin-top: 5px;
+        }
+        .info-km {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Distribuidora Savia</h2>
+    <p class="subtitle">Ingresá tu dirección para calcular el envío</p>
+    
+    <div class="search-container">
+        <input type="text" id="direccion" placeholder="Ej: Av. Calchaquí 1500, Florencio Varela" autocomplete="off" oninput="buscarDireccionDebounce()">
+        <div id="suggestions" class="suggestions"></div>
+    </div>
+    
+    <button id="btnCalcular" onclick="calcularEnvio()" disabled>Calcular Envío</button>
+
+    <div id="resultados" class="resultados">
+        <div class="dato">Costo de envío: <span id="costoEnvio" style="font-weight: bold;">$0</span></div>
+        <div class="dato" style="font-size: 15px; color: #7f8c8d;">- o también -</div>
+        <div class="dato">¡Envío <b>GRATIS</b> con tu compra mayor a:</div>
+        <div id="compraMinima" class="destacado">$0</div>
+        <div id="distanciaTexto" class="info-km">Distancia aproximada: 0 km</div>
+    </div>
+</div>
+
+<script>
+    const DEPOSITO_LAT = -34.7963;
+    const DEPOSITO_LON = -58.2770;
+
+    let coordenadaSeleccionada = null;
+    let debounceTimer;
+
+    function buscarDireccionDebounce() {
+        clearTimeout(debounceTimer);
+        document.getElementById('btnCalcular').disabled = true;
+        
+        const input = document.getElementById('direccion').value;
+        if (input.length < 4) {
+            document.getElementById('suggestions').style.display = 'none';
+            return;
+        }
+
+        debounceTimer = setTimeout(() => {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&countrycodes=ar&limit=5`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    const sugerenciasDiv = document.getElementById('suggestions');
+                    sugerenciasDiv.innerHTML = '';
+                    
+                    if (data.length > 0) {
+                        data.forEach(item => {
+                            const div = document.createElement('div');
+                            div.innerText = item.display_name;
+                            div.onclick = () => seleccionarDireccion(item.display_name, item.lat, item.lon);
+                            sugerenciasDiv.appendChild(div);
+                        });
+                        sugerenciasDiv.style.display = 'block';
+                    } else {
+                        sugerenciasDiv.style.display = 'none';
+                    }
+                })
+                .catch(err => console.error("Error:", err));
+        }, 500);
+    }
+
+    function seleccionarDireccion(nombre, lat, lon) {
+        document.getElementById('direccion').value = nombre;
+        document.getElementById('suggestions').style.display = 'none';
+        
+        coordenadaSeleccionada = { lat: parseFloat(lat), lon: parseFloat(lon) };
+        document.getElementById('btnCalcular').disabled = false;
+    }
+
+    function calcularDistanciaKilometros(lat1, lon1, lat2, lon2) {
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; 
+    }
+
+    function calcularEnvio() {
+        if (!coordenadaSeleccionada) return;
+
+        let distancia = calcularDistanciaKilometros(DEPOSITO_LAT, DEPOSITO_LON, coordenadaSeleccionada.lat, coordenadaSeleccionada.lon);
+        distancia = distancia * 1.25; 
+
+        const costoPorKmRecorrido = 300; 
+        const margenAbsorcionEnvio = 0.15; 
+
+        const distanciaTotal = distancia * 2; 
+        const costoEnvio = distanciaTotal * costoPorKmRecorrido;
+        const compraMinima = costoEnvio / margenAbsorcionEnvio;
+
+        document.getElementById('costoEnvio').innerText = '$' + Math.round(costoEnvio).toLocaleString('es-AR');
+        document.getElementById('compraMinima').innerText = '$' + Math.round(compraMinima).toLocaleString('es-AR');
+        document.getElementById('distanciaTexto').innerText = `Distancia aproximada calculada: ${distancia.toFixed(1)} km`;
+        
+        document.getElementById('resultados').style.display = 'block';
+    }
+
+    document.addEventListener('click', function(e) {
+        if (e.target.id !== 'direccion') {
+            document.getElementById('suggestions').style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>
