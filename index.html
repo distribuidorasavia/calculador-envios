@@ -133,12 +133,8 @@
 </div>
 
 <script>
-    // Punto Fijo: Cruce Varela
     const DEPOSITO_LAT = -34.7963;
     const DEPOSITO_LON = -58.2770;
-
-    // Caja de búsqueda para encerrar los resultados prioritarios en GBA Sur
-    // [Lat Min, Lon Min, Lat Max, Lon Max] -> Abarca Quilmes, Varela, Berazategui, Avellaneda, Lanus, etc.
     const VIEWBOX = "-58.45,-34.95,-58.10,-34.65"; 
 
     let coordenadaSeleccionada = null;
@@ -155,7 +151,6 @@
         }
 
         debounceTimer = setTimeout(() => {
-            // viewbox y bounded=1 fuerzan a Nominatim a buscar prioritariamente dentro de nuestro cuadrante de GBA Sur
             const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&countrycodes=ar&viewbox=${VIEWBOX}&bounded=1&limit=5&addressdetails=1`;
             
             fetch(url)
@@ -166,7 +161,6 @@
                     
                     if (data.length > 0) {
                         data.forEach(item => {
-                            // Armamos un formato de nombre más limpio y legible para el usuario de Buenos Aires
                             const road = item.address.road || '';
                             const houseNumber = item.address.house_number || '';
                             const suburb = item.address.suburb || item.address.city_district || '';
@@ -219,11 +213,14 @@
         distancia = distancia * 1.25; 
 
         const costoPorKmRecorrido = 300; 
-        const margenAbsorcionEnvio = 0.15; 
+        
+        // OPCIÓN B: El flete representa máximo el 10% del total comprado
+        const porcentajeMaximoFlete = 0.10; 
 
         const distanciaTotal = distancia * 2; 
         const costoEnvio = distanciaTotal * costoPorKmRecorrido;
-        const compraMinima = costoEnvio / margenAbsorcionEnvio;
+        
+        const compraMinima = costoEnvio / porcentajeMaximoFlete;
 
         document.getElementById('costoEnvio').innerText = '$' + Math.round(costoEnvio).toLocaleString('es-AR');
         document.getElementById('compraMinima').innerText = '$' + Math.round(compraMinima).toLocaleString('es-AR');
